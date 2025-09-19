@@ -17,3 +17,5 @@ Version manager for Helldivers 2
 1. Install Python 3 from [python.org](https://python.org)
 2. Install the dependencies with `pip install -r requirements.txt`
 3. Run `pyinstaller --onefile --clean --noconsole --add-data "meridia.ico;." --icon=meridia.ico timediversverman.py`
+
+<img width="525" height="407" alt="Control-V" src="https://i.imgur.com/pyFDqow.png"/>
