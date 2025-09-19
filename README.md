@@ -5,9 +5,10 @@ Version manager for Helldivers 2
 1. In the Steam properties for Helldivers 2, disable all DLC and set the game to only update when you launch it.
 2. Create a new folder anywhere for timediversverman.exe
 3. Download the latest windows-x64 version of the [DepotDownloader](https://github.com/SteamRE/DepotDownloader/releases) and place the exe in the same folder.
-4. Run timediversverman.exe and update the list.
-5. Browse and navigate to the Common folder that already contains Helldivers 2.
-6. Enter your steam username, choose whether or not to remember your password, and then download a version.
+4. Open Microsoft Edge, go to [steamdb.info](https://steamdb.info) and log into your steam account. Make sure to check 'Remember Me'.
+5. Run timediversverman.exe and update the list.
+6. Browse and navigate to the Common folder that already contains Helldivers 2.
+7. Enter your steam username, choose whether or not to remember your password, and then download a version.
 
 # Things to Know
 1. Always check for game updates on Steam. If an update comes out, make sure that the Steam version is active in the version manager and then download the update. Updates cannot be easily skipped, and downloading an update while an old version is active will cause issues.
