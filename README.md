@@ -15,6 +15,7 @@ Version manager for Helldivers 2
 2. The scraping process for updating the list may appear stuck at some points. If it appears stuck for longer than a minute or two, close everything and try again.
 3. This program does not prompt you for, or store, your password. That is all handled with the DepotDownloader and choosing to remember your password just passes the remember-password flag to it.
 4. The 2024 April 16th version, 1.000.203, is currently the oldest version that can still connect to the servers. Any versions older than that will not continue past the title screen.
+5. If you're unable to update your list, or don't want Edge to be restarted in debug mode, I've uploaded a manifests.json file that was scraped as of 9/21/2025 which can be placed in the same folder as the exe.
 
 # Building
 1. Install Python 3 from [python.org](https://python.org)
