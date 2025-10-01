@@ -7,7 +7,7 @@ Version manager for Helldivers 2
 3. Download the latest windows-x64 version of the [DepotDownloader](https://github.com/SteamRE/DepotDownloader/releases) and place the exe in the same folder.
 4. Open Microsoft Edge, go to [steamdb.info](https://steamdb.info) and log into your steam account. Make sure to check 'Remember Me'.
 5. Run timediversverman.exe and update the list.
-6. Browse and navigate to the Common folder that already contains Helldivers 2.
+6. Browse and navigate to the Common folder that contains the Helldivers 2 folder. (Not the Helldivers 2 folder itself)
 7. Enter your steam username, choose whether or not to remember your password, and then download a version.
 
 # Things to Know
