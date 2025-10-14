@@ -11,7 +11,7 @@ Version manager for Helldivers 2
 7. Enter your steam username, choose whether or not to remember your password, and then download a version.
 
 # Things to Know
-1. If you're unable to update your list, or don't want Edge to be restarted in debug mode, I've uploaded a manifests.json file alongside the exe that was scraped as of 9/21/2025 which can be placed in the same folder.
+1. If you're unable to update your list, or don't want Edge to be restarted in debug mode, I've uploaded a manifests.json file in the v1.0 release that was scraped as of 9/21/2025. It can be placed in the same folder as the exe.
 2. Always check for game updates on Steam. If an update comes out, make sure that the Steam version is active in the version manager and then download the update. Updates cannot be easily skipped, and downloading an update while an old version is active will cause issues.
 3. The scraping process for updating the list may appear stuck at some points. If it appears stuck for longer than a minute or two, close everything and try again.
 4. This program does not prompt you for, or store, your password. That is all handled with the DepotDownloader and choosing to remember your password just passes the remember-password flag to it.
