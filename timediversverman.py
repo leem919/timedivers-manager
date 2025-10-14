@@ -121,6 +121,13 @@ class VersionManagerApp(tk.Tk):
         middle_frame.pack(fill="both", expand=True, padx=10, pady=5)
 
         ttk.Label(middle_frame, text="Available Versions:").pack(anchor="w")
+        self.sort_downloaded_first = tk.BooleanVar(value=False)
+        ttk.Checkbutton(
+            middle_frame,
+            text="Sort by Downloaded",
+            variable=self.sort_downloaded_first,
+            command=self.refresh_version_list
+        ).pack(anchor="w", pady=(0, 5))
         self.version_listbox = tk.Listbox(
             middle_frame, height=20,
             bg="#2c2c3c", fg=self.fg, selectbackground=self.accent,
@@ -148,7 +155,6 @@ class VersionManagerApp(tk.Tk):
         self.version_listbox.delete(0, tk.END)
         self.listbox_index_to_version.clear()
         active_version = self.config_data.get("active_version", "")
-
         steam_folder = os.path.join(self.config_data.get("common_folder", ""), "Helldivers 2_steam")
         display_name = "Steam Version"
         downloaded_tag = "(downloaded) " if os.path.exists(steam_folder) else ""
@@ -156,9 +162,15 @@ class VersionManagerApp(tk.Tk):
         display_name = f"{downloaded_tag}{active_tag}{display_name}"
         self.version_listbox.insert(tk.END, display_name)
         self.listbox_index_to_version[0] = "steam"
-
         dates = [v for v in self.manifests.keys() if v != "steam"]
-        dates_sorted = sorted(dates, key=lambda x: x, reverse=True)
+        if self.sort_downloaded_first.get():
+            def sort_key(v):
+                folder_path = os.path.join(self.config_data.get("common_folder", ""), format_version_name(v))
+                is_downloaded = os.path.exists(folder_path)
+                return (not is_downloaded, -int(v.replace("-", "")) if v.replace("-", "").isdigit() else 0)
+            dates_sorted = sorted(dates, key=sort_key)
+        else:
+            dates_sorted = sorted(dates, key=lambda x: x, reverse=True)
         for version in dates_sorted:
             folder_path = os.path.join(self.config_data.get("common_folder", ""), format_version_name(version))
             downloaded_tag = "(downloaded) " if os.path.exists(folder_path) else ""
