@@ -54,6 +54,30 @@ def resource_path(relative_path):
         base_path = os.path.abspath(".")
     return os.path.join(base_path, relative_path)
 
+def is_junction(path):
+    try:
+        FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+        attrs = ctypes.windll.kernel32.GetFileAttributesW(str(path))
+        if attrs == -1:
+            return False
+        return bool(attrs & FILE_ATTRIBUTE_REPARSE_POINT)
+    except Exception:
+        return False
+
+def create_junction(link_path, target_path):
+    result = subprocess.run(
+        ["cmd.exe", "/c", "mklink", "/J", link_path, target_path],
+        check=True, capture_output=True, text=True
+    )
+    return result
+
+def remove_junction(path):
+    os.rmdir(path)
+
+def open_explorer(path):
+    subprocess.Popen(["explorer", os.path.normpath(path)])
+
+
 icon_stable = os.path.join(os.getenv("APPDATA"), "timedivers_manager", "meridia.ico")
 os.makedirs(os.path.dirname(icon_stable), exist_ok=True)
 if not os.path.exists(icon_stable):
@@ -92,13 +116,97 @@ class VersionManagerApp(tk.Tk):
         save_manifests(self.manifests)
         self.listbox_index_to_version = {}
 
+        self.migrate_to_junction()
         self.create_widgets()
         self.refresh_version_list()
 
     def restart_app(self):
         subprocess.Popen([sys.executable, os.path.abspath(sys.argv[0])])
-        # Exit current instance
         sys.exit(0)
+
+    def migrate_to_junction(self):
+        common = self.config_data.get("common_folder", "")
+        if not common:
+            return
+
+        active_folder = os.path.join(common, "Helldivers 2")
+        active_version = self.config_data.get("active_version", "steam")
+        versioned_name = (
+            "Helldivers 2_steam"
+            if active_version == "steam"
+            else format_version_name(active_version)
+        )
+        versioned_path = os.path.join(common, versioned_name)
+
+        if is_junction(active_folder):
+            return
+
+        if not os.path.isdir(active_folder) and os.path.isdir(versioned_path):
+            try:
+                create_junction(active_folder, versioned_path)
+            except Exception as e:
+                messagebox.showerror(
+                    "Migration Failed",
+                    f"The versioned folder exists but junction creation failed:\n{e}\n\n"
+                    f"Try running the app as administrator."
+                )
+            return
+
+        if os.path.isdir(active_folder):
+            proceed = messagebox.askyesno(
+                "One-Time Setup",
+                f"In order to enable junction-based version switching, a one-time migration is needed. "
+                f"This eliminates the random errors when unable to switch versions.\n\n"
+                f"The following will happen:\n\n"
+                f"  • 'Helldivers 2' will be renamed to '{versioned_name}'\n"
+                f"  • A junction named 'Helldivers 2' will be created in its place\n\n"
+                f"The game will continue to work exactly as before. "
+                f"This only needs to be done once.\n\n"
+                f"Proceed?"
+            )
+            if not proceed:
+                sys.exit(0)
+            if os.path.exists(versioned_path):
+                messagebox.showwarning(
+                    "Migration Warning",
+                    f"Both of these folders exist as real directories:\n\n"
+                    f"  {active_folder}\n"
+                    f"  {versioned_path}\n\n"
+                    f"Please manually remove or merge the duplicate, then restart."
+                )
+                return
+
+            try:
+                os.rename(active_folder, versioned_path)
+            except OSError:
+                messagebox.showinfo(
+                    "One-Time Setup Required",
+                    f"A one-time folder migration to use junction points is necessary "
+                    f"for version switching, as this eliminates the random switching errors.\n\n"
+                    f"Windows is preventing the app from renaming the folder automatically.\n\n"
+                    f"Please do this manually in File Explorer:\n\n"
+                    f"  Rename:  Helldivers 2\n"
+                    f"  To:      {versioned_name}\n\n"
+                    f"The folder is located in:\n  {common}\n\n"
+                    f"Then restart Timedivers. This only needs to be done once.\n\n"
+                    f"The junction will be created after restarting the app."
+                )
+                open_explorer(common)
+                return
+
+            try:
+                create_junction(active_folder, versioned_path)
+            except Exception as e:
+                try:
+                    os.rename(versioned_path, active_folder)
+                except Exception:
+                    pass
+                messagebox.showerror(
+                    "Migration Failed",
+                    f"The folder was renamed successfully but junction creation failed:\n{e}\n\n"
+                    f"The rename has been undone. Try running the app as administrator."
+                )
+                open_explorer(common)
 
     def create_widgets(self):
         top_frame = ttk.Frame(self, style="TFrame")
@@ -140,6 +248,7 @@ class VersionManagerApp(tk.Tk):
         ttk.Button(bottom_frame, text="Download Version", command=self.download_version).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Set Active Version", command=self.switch_version).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Delete Version", command=self.delete_version).pack(side="left", padx=5)
+        ttk.Button(bottom_frame, text="Revert Folders", command=self.revert_to_vanilla).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Update List", command=self.run_scraper).pack(side="right", padx=5)
 
     # Folder/Version Management
@@ -150,6 +259,7 @@ class VersionManagerApp(tk.Tk):
             self.config_data["common_folder"] = folder
             save_config(self.config_data)
             self.refresh_version_list()
+            self.migrate_to_junction()
 
     def refresh_version_list(self):
         self.version_listbox.delete(0, tk.END)
@@ -182,7 +292,7 @@ class VersionManagerApp(tk.Tk):
             self.version_listbox.insert(tk.END, display_name)
             self.listbox_index_to_version[idx] = version
 
-    # Download / Switch / Delete
+    # Download / Switch / Delete / Revert
     def download_version(self):
         self.config_data["username"] = self.username_var.get()
         self.config_data["remember_password"] = self.remember_var.get()
@@ -223,27 +333,39 @@ class VersionManagerApp(tk.Tk):
         selection = self.version_listbox.curselection()
         if not selection:
             return
+
         version_name = self.listbox_index_to_version[selection[0]]
-        active_folder = get_active_folder_path(self.config_data)
         common = self.config_data["common_folder"]
-        target_folder = os.path.join(common, format_version_name(version_name) if version_name != "steam" else "Helldivers 2_steam")
+        active_folder = get_active_folder_path(self.config_data)  
 
-        if active_folder == target_folder:
-            return
-
-        if os.path.exists(active_folder):
-            current_active_name = self.config_data.get("active_version")
-            new_name = os.path.join(common, "Helldivers 2_steam" if current_active_name == "steam" else format_version_name(current_active_name))
-            if os.path.exists(new_name):
-                messagebox.showwarning("Rename Conflict", f"Cannot rename current active folder, {new_name} already exists.")
-                return
-            os.rename(active_folder, new_name)
+        target_folder = os.path.join(
+            common,
+            "Helldivers 2_steam" if version_name == "steam" else format_version_name(version_name)
+        )
 
         if not os.path.exists(target_folder):
-            messagebox.showerror("Missing Folder", f"Target version folder {target_folder} does not exist.")
+            messagebox.showerror("Missing Folder", f"Target version folder does not exist:\n{target_folder}")
             return
 
-        os.rename(target_folder, active_folder)
+        if os.path.exists(active_folder) or is_junction(active_folder):
+            try:
+                remove_junction(active_folder)
+            except Exception as e:
+                messagebox.showerror(
+                    "Switch Failed",
+                    f"Could not remove the existing junction at:\n{active_folder}\n\n{e}"
+                )
+                return
+
+        try:
+            create_junction(active_folder, target_folder)
+        except Exception as e:
+            messagebox.showerror(
+                "Switch Failed",
+                f"Could not create junction to:\n{target_folder}\n\n{e}"
+            )
+            return
+
         self.config_data["active_version"] = version_name
         save_config(self.config_data)
         self.refresh_version_list()
@@ -276,6 +398,88 @@ class VersionManagerApp(tk.Tk):
         shutil.rmtree(folder_to_delete)
         self.refresh_version_list()
 
+    def revert_to_vanilla(self):
+        confirm = messagebox.askyesno(
+            "Revert Folders",
+            "This will:\n\n"
+            "  • Remove the junction\n"
+            "  • Rename 'Helldivers 2_steam' back to 'Helldivers 2'\n\n"
+            "Any downloaded old version folders will be left on disk, "
+            "you can delete them manually to reclaim disk space.\n\n"
+            "Steam will manage Helldivers 2 normally after this.\n\n"
+            "Continue?"
+        )
+        if not confirm:
+            return
+
+        common = self.config_data.get("common_folder", "")
+        if not common:
+            messagebox.showerror("Revert Failed", "No Steam common folder is configured.")
+            return
+
+        active_folder = os.path.join(common, "Helldivers 2")
+        steam_versioned = os.path.join(common, "Helldivers 2_steam")
+
+        active_version = self.config_data.get("active_version", "steam")
+        if active_version != "steam":
+            if not os.path.exists(steam_versioned):
+                messagebox.showerror(
+                    "Revert Failed",
+                    f"Cannot revert: the Steam version folder does not exist:\n{steam_versioned}\n\n"
+                    f"You need the Steam version present to revert."
+                )
+                return
+            if is_junction(active_folder) or os.path.exists(active_folder):
+                try:
+                    remove_junction(active_folder)
+                except Exception as e:
+                    messagebox.showerror("Revert Failed", f"Could not remove junction:\n{e}")
+                    return
+            try:
+                create_junction(active_folder, steam_versioned)
+            except Exception as e:
+                messagebox.showerror("Revert Failed", f"Could not point junction at Steam version:\n{e}")
+                return
+
+        if is_junction(active_folder) or os.path.exists(active_folder):
+            try:
+                remove_junction(active_folder)
+            except Exception as e:
+                messagebox.showerror("Revert Failed", f"Could not remove junction:\n{e}")
+                return
+
+        if not os.path.exists(steam_versioned):
+            messagebox.showerror(
+                "Revert Failed",
+                f"Steam version folder not found:\n{steam_versioned}\n\n"
+                f"The junction has been removed but the folder could not be renamed. "
+                f"Please rename it manually in File Explorer:\n"
+                f"  From: Helldivers 2_steam\n"
+                f"  To:   Helldivers 2"
+            )
+            open_explorer(common)
+            return
+
+        try:
+            os.rename(steam_versioned, active_folder)
+        except OSError as e:
+            messagebox.showerror(
+                "Revert Failed",
+                f"Could not rename the Steam folder back to 'Helldivers 2':\n{e}\n\n"
+                f"Please rename it manually in File Explorer:\n"
+                f"  From: Helldivers 2_steam\n"
+                f"  To:   Helldivers 2"
+            )
+            open_explorer(common)
+            return
+
+        messagebox.showinfo(
+            "Revert Complete",
+            "Your folder setup has been restored.\n\n"
+            "Note: any old version folders are still on disk, "
+            "you can delete them manually from your Steam common folder to reclaim the space."
+        )
+        sys.exit(0)
 
     def run_scraper(self):
         confirm = messagebox.askyesno(
@@ -289,7 +493,6 @@ class VersionManagerApp(tk.Tk):
 
         def worker():
             asyncio.run(scraper.main())
-            # Schedule restart on main thread
             self.after(0, self.restart_app)
 
         threading.Thread(target=worker, daemon=True).start()
