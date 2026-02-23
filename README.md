@@ -3,12 +3,13 @@ Version manager for Helldivers 2
 
 # Usage
 1. In the Steam properties for Helldivers 2, disable all DLC and set the game to only update when you launch it.
-2. Create a new folder anywhere and place timediversverman.exe into it. You can grab that from the [releases](https://github.com/leem919/timedivers-manager/releases) or build it yourself.
-3. Download the latest windows-x64 version of the [DepotDownloader](https://github.com/SteamRE/DepotDownloader/releases) and place the exe in the same folder.
-4. Open Microsoft Edge, go to [steamdb.info](https://steamdb.info) and log into your steam account. Make sure to check 'Remember Me'.
-5. Run timediversverman.exe and update the list.
-6. Browse and navigate to the Common folder that contains the Helldivers 2 folder. (Don't select the Helldivers 2 folder itself)
-7. Enter your steam username, choose whether or not to remember your password, and then download a version.
+2. Opt out of any betas and ensure you're using the default version.
+3. Create a new folder anywhere and place timediversverman.exe into it. You can grab that from the [releases](https://github.com/leem919/timedivers-manager/releases) or build it yourself.
+4. Download the latest windows-x64 version of the [DepotDownloader](https://github.com/SteamRE/DepotDownloader/releases) and place the exe in the same folder.
+5. Open Microsoft Edge, go to [steamdb.info](https://steamdb.info) and log into your steam account. Make sure to check 'Remember Me'.
+6. Run timediversverman.exe and update the list.
+7. Browse and navigate to the Common folder that contains the Helldivers 2 folder. (Don't select the Helldivers 2 folder itself)
+8. Enter your steam username, choose whether or not to remember your password, and then download a version.
 
 # Things to Know
 1. If you're unable to update your list, or don't want Edge to be restarted in debug mode, I've uploaded a manifests.json file in the v1.0 release that was scraped as of 9/21/2025. It can be placed in the same folder as the exe.
