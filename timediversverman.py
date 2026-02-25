@@ -120,10 +120,6 @@ class VersionManagerApp(tk.Tk):
         self.create_widgets()
         self.refresh_version_list()
 
-    def restart_app(self):
-        subprocess.Popen([sys.executable, os.path.abspath(sys.argv[0])])
-        sys.exit(0)
-
     def migrate_to_junction(self):
         common = self.config_data.get("common_folder", "")
         if not common:
@@ -156,7 +152,7 @@ class VersionManagerApp(tk.Tk):
             proceed = messagebox.askyesno(
                 "One-Time Setup",
                 f"In order to enable junction-based version switching, a one-time migration is needed. "
-                f"This eliminates the random errors when unable to switch versions.\n\n"
+                f"This reduces potential errors when unable to switch versions.\n\n"
                 f"The following will happen:\n\n"
                 f"  • 'Helldivers 2' will be renamed to '{versioned_name}'\n"
                 f"  • A junction named 'Helldivers 2' will be created in its place\n\n"
@@ -181,8 +177,8 @@ class VersionManagerApp(tk.Tk):
             except OSError:
                 messagebox.showinfo(
                     "One-Time Setup Required",
-                    f"A one-time folder migration to use junction points is necessary "
-                    f"for version switching, as this eliminates the random switching errors.\n\n"
+                    f"A one-time folder migration to use junction points is required "
+                    f"for version switching, as this reduces potential switching errors.\n\n"
                     f"Windows is preventing the app from renaming the folder automatically.\n\n"
                     f"Please do this manually in File Explorer:\n\n"
                     f"  Rename:  Helldivers 2\n"
@@ -493,9 +489,17 @@ class VersionManagerApp(tk.Tk):
 
         def worker():
             asyncio.run(scraper.main())
-            self.after(0, self.restart_app)
+            self.after(0, self._scraper_done)
 
         threading.Thread(target=worker, daemon=True).start()
+
+    def _scraper_done(self):
+        messagebox.showinfo(
+            "Scraping Complete",
+            "The manifest list has been updated.\n\n"
+            "Please restart the version manager to load the new manifests."
+        )
+        sys.exit(0)
 
 
 # Entrypoint
