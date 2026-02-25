@@ -15,8 +15,9 @@ Version manager for Helldivers 2
 1. If you're unable to update your list, or don't want Edge to be restarted in debug mode, I've uploaded a manifests.json file in the v1.0 release that was scraped as of 9/21/2025. It can be placed in the same folder as the exe.
 2. Always check for game updates on Steam. If an update comes out, make sure that the Steam version is active in the version manager and then download the update. Updates cannot be easily skipped, and downloading an update while an old version is active will cause issues.
 3. Unfortunately, most versions of the game won't be able to connect to the servers anymore after a recent change in the API.
-4. The scraping process for updating the list may appear stuck at some points. If it appears stuck for longer than a minute or two, close everything and try again.
-5. This program does not prompt you for, or store, your password. That is all handled with the DepotDownloader and choosing to remember your password just passes the remember-password flag to it.
+4. It is recommended to switch back to the steam version when not actively playing for a while in case steam does a file check.
+5. The scraping process for updating the list may appear stuck at some points. If it appears stuck for longer than a minute or two, close everything and try again.
+6. This program does not prompt you for, or store, your password. That is all handled with the DepotDownloader and choosing to remember your password just passes the remember-password flag to it.
 
 # Building
 1. Install Python 3 from [python.org](https://python.org)
