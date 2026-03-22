@@ -23,7 +23,7 @@ Version manager for Helldivers 2
 # Steam Console
 Some users have reported issues with the Depot Downloader and instead used the Steam Console. I believe the main issues come from unusual ownership situations, such as game sharing on the local machine or across a steam family. As such, I've implemented a method for using the steam console with this manager in the event that the game forces an update or crashes occur before getting ingame. This should download the files in the same way they would be normally through steam. I still suggest using the Depot Downloader as it's dedicated to the functionality and generally works better.
 1. Select a version and select "Use Steam Console".
-2. Browse and navigate to the Content folder. It should be in the steamapps folder where steam is installed.
+2. Browse and navigate to the Content folder. It should be in the steamapps folder where steam is installed. If you have trouble finding it, you can download a depot and see where the console says the content folder is.
 3. If any depots are already downloaded, they might be for a different version and should be deleted to be safe. 
 4. Select "Open Steam Console" and wait for the Steam window to open and switch to the console tab.
 5. Select "Copy" next to the first command, paste it into the console, and hit enter to start the download.
