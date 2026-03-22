@@ -22,7 +22,7 @@ def load_config():
     if os.path.exists(CONFIG_FILE):
         with open(CONFIG_FILE, "r") as f:
             return json.load(f)
-    return {"common_folder": "", "username": "", "remember_password": False, "active_version": "steam"}
+    return {"common_folder": "", "username": "", "remember_password": False, "active_version": "steam", "content_folder": ""}
 
 def save_config(config):
     with open(CONFIG_FILE, "w") as f:
@@ -82,6 +82,213 @@ icon_stable = os.path.join(os.getenv("APPDATA"), "timedivers_manager", "meridia.
 os.makedirs(os.path.dirname(icon_stable), exist_ok=True)
 if not os.path.exists(icon_stable):
     shutil.copy(resource_path("meridia.ico"), icon_stable)
+
+
+# Steam Console Window
+class SteamConsoleWindow(tk.Toplevel):
+    def __init__(self, parent, version_name, manifests, config_data, on_import_complete):
+        super().__init__(parent)
+        self.version_name = version_name
+        self.manifests = manifests
+        self.config_data = config_data
+        self.on_import_complete = on_import_complete
+
+        self.bg = parent.bg
+        self.fg = parent.fg
+        self.accent = parent.accent
+
+        self.title(f"Steam Console Import — {version_name}")
+        self.geometry("700x380")
+        self.resizable(False, False)
+        self.configure(bg=self.bg)
+        self.grab_set()
+
+        style = ttk.Style(self)
+        style.theme_use("clam")
+        style.configure("TButton", background=self.accent, foreground=self.fg, font=("Segoe UI", 10), padding=6)
+        style.map("TButton", background=[("active", "#b67fd3")], foreground=[("disabled", "#666666")])
+        style.configure("TEntry", fieldbackground="#2c2c3c", foreground=self.fg, insertcolor=self.fg)
+
+        self.content_folder_var = tk.StringVar(value=config_data.get("content_folder", ""))
+        self.depot_action_frames = {}
+
+        self._build_ui()
+
+        if self.content_folder_var.get():
+            self._refresh_depot_status()
+
+    def _build_ui(self):
+        top = tk.Frame(self, bg=self.bg)
+        top.pack(fill="x", padx=12, pady=10)
+        tk.Label(top, text="Steam Content Folder:", bg=self.bg, fg=self.fg,
+                 font=("Segoe UI", 10)).pack(side="left")
+        tk.Entry(top, textvariable=self.content_folder_var, width=44,
+                 bg="#2c2c3c", fg=self.fg, insertbackground=self.fg,
+                 relief="flat", font=("Segoe UI", 10)).pack(side="left", padx=6)
+        ttk.Button(top, text="Browse", command=self._browse_content_folder).pack(side="left")
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=12, pady=2)
+
+        depot_frame = tk.Frame(self, bg=self.bg)
+        depot_frame.pack(fill="x", padx=12, pady=6)
+
+        for depot_id in PRIMARY_DEPOTS:
+            row = tk.Frame(depot_frame, bg=self.bg)
+            row.pack(fill="x", pady=6)
+
+            tk.Label(row, text=f"Depot {depot_id}:", bg=self.bg, fg=self.fg,
+                     font=("Segoe UI", 10), width=14, anchor="w").pack(side="left")
+
+            action_frame = tk.Frame(row, bg=self.bg)
+            action_frame.pack(side="left", fill="x", expand=True)
+            self.depot_action_frames[depot_id] = action_frame
+
+        ttk.Separator(self, orient="horizontal").pack(fill="x", padx=12, pady=2)
+
+        bottom = tk.Frame(self, bg=self.bg)
+        bottom.pack(fill="x", padx=12, pady=10)
+
+        ttk.Button(bottom, text="Open Steam Console",
+                   command=lambda: subprocess.Popen(
+                       ["cmd.exe", "/c", "start", "steam://open/console"],
+                       creationflags=subprocess.CREATE_NO_WINDOW
+                   )).pack(side="left")
+        ttk.Button(bottom, text="Refresh",
+                   command=self._refresh_depot_status).pack(side="left", padx=6)
+
+        self.import_btn = ttk.Button(bottom, text="Import Version",
+                                     command=self._import_version, state="disabled")
+        self.import_btn.pack(side="right")
+
+    def _browse_content_folder(self):
+        folder = filedialog.askdirectory(parent=self)
+        if folder:
+            self.content_folder_var.set(folder)
+            self.config_data["content_folder"] = folder
+            save_config(self.config_data)
+            self._refresh_depot_status()
+
+    def _refresh_depot_status(self):
+        content_folder = self.content_folder_var.get()
+        all_present = True
+
+        for depot_id, action_frame in self.depot_action_frames.items():
+            for widget in action_frame.winfo_children():
+                widget.destroy()
+
+            depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
+            present = os.path.isdir(depot_path)
+
+            if not present:
+                all_present = False
+
+            if present:
+                tk.Label(action_frame, text="Downloaded", bg=self.bg, fg=self.fg,
+                         font=("Segoe UI", 10)).pack(side="left")
+                ttk.Button(action_frame, text="Delete",
+                           command=lambda p=depot_path: self._delete_depot(p)).pack(side="left", padx=10)
+            else:
+                manifest_id = self.manifests.get(self.version_name, {}).get(str(depot_id), "UNKNOWN")
+                command = f"download_depot {APP_ID} {depot_id} {manifest_id}"
+
+                cmd_entry = tk.Entry(action_frame, width=52,
+                                     bg="#2c2c3c", fg=self.fg, insertbackground=self.fg,
+                                     readonlybackground="#2c2c3c",
+                                     relief="flat", font=("Segoe UI", 10))
+                cmd_entry.insert(0, command)
+                cmd_entry.config(state="readonly")
+                cmd_entry.pack(side="left")
+
+                ttk.Button(action_frame, text="Copy",
+                           command=lambda c=command: self._copy_to_clipboard(c)).pack(side="left", padx=6)
+
+        self.import_btn.config(state="normal" if all_present else "disabled")
+
+    def _delete_depot(self, path):
+        confirm = messagebox.askyesno(
+            "Delete Depot Folder",
+            f"Permanently delete:\n{path}",
+            parent=self
+        )
+        if confirm:
+            try:
+                shutil.rmtree(path)
+            except Exception as e:
+                messagebox.showerror("Delete Failed", f"Could not delete folder:\n{e}", parent=self)
+            self._refresh_depot_status()
+
+    def _copy_to_clipboard(self, text):
+        self.clipboard_clear()
+        self.clipboard_append(text)
+
+    def _import_version(self):
+        content_folder = self.content_folder_var.get()
+        dest_folder = os.path.join(
+            self.config_data["common_folder"], format_version_name(self.version_name)
+        )
+
+        if os.path.exists(dest_folder):
+            messagebox.showerror(
+                "Import Failed",
+                f"Destination folder already exists:\n{dest_folder}\n\n"
+                f"Delete it first if you want to re-import.",
+                parent=self
+            )
+            return
+
+        self.import_btn.config(state="disabled")
+
+        def do_import():
+            try:
+                os.makedirs(dest_folder, exist_ok=True)
+                for depot_id in PRIMARY_DEPOTS:
+                    depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
+                    for dirpath, dirnames, filenames in os.walk(depot_path):
+                        rel = os.path.relpath(dirpath, depot_path)
+                        target_dir = os.path.join(dest_folder, rel)
+                        os.makedirs(target_dir, exist_ok=True)
+                        for filename in filenames:
+                            src = os.path.join(dirpath, filename)
+                            dst = os.path.join(target_dir, filename)
+                            shutil.move(src, dst)
+                for depot_id in PRIMARY_DEPOTS:
+                    depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
+                    shutil.rmtree(depot_path, ignore_errors=True)
+                self.after(0, self._import_done)
+            except Exception as e:
+                self.after(0, lambda: self._import_error(str(e)))
+
+        threading.Thread(target=do_import, daemon=True).start()
+
+    def _import_done(self):
+        content_folder = self.content_folder_var.get()
+        for depot_id in PRIMARY_DEPOTS:
+            depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
+            try:
+                if os.path.isdir(depot_path):
+                    shutil.rmtree(depot_path)
+            except Exception as e:
+                messagebox.showwarning(
+                    "Cleanup Warning",
+                    f"Import succeeded but could not clear depot folder:\n{depot_path}\n\n{e}",
+                    parent=self
+                )
+        messagebox.showinfo(
+            "Import Complete",
+            f"Version {self.version_name} has been imported successfully.\n\n"
+            f"Depot folders have been cleared.",
+            parent=self
+        )
+        self.on_import_complete()
+        self.destroy()
+
+    def _import_error(self, error):
+        self.import_btn.config(state="normal")
+        messagebox.showerror(
+            "Import Failed",
+            f"An error occurred during import:\n{error}",
+            parent=self
+        )
 
 
 # GUI
@@ -242,6 +449,7 @@ class VersionManagerApp(tk.Tk):
         bottom_frame = ttk.Frame(self, style="TFrame")
         bottom_frame.pack(fill="x", padx=10, pady=5)
         ttk.Button(bottom_frame, text="Download Version", command=self.download_version).pack(side="left", padx=5)
+        ttk.Button(bottom_frame, text="Use Steam Console", command=self.open_steam_console).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Set Active Version", command=self.switch_version).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Delete Version", command=self.delete_version).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Revert Folders", command=self.revert_to_vanilla).pack(side="left", padx=5)
@@ -288,7 +496,7 @@ class VersionManagerApp(tk.Tk):
             self.version_listbox.insert(tk.END, display_name)
             self.listbox_index_to_version[idx] = version
 
-    # Download / Switch / Delete / Revert
+    # Download / Steam Console / Switch / Delete / Revert
     def download_version(self):
         self.config_data["username"] = self.username_var.get()
         self.config_data["remember_password"] = self.remember_var.get()
@@ -325,6 +533,37 @@ class VersionManagerApp(tk.Tk):
         subprocess.Popen(["cmd.exe", "/c", batch_path], creationflags=subprocess.CREATE_NEW_CONSOLE)
         self.refresh_version_list()
 
+    def open_steam_console(self):
+        selection = self.version_listbox.curselection()
+        if not selection:
+            return
+
+        version_name = self.listbox_index_to_version[selection[0]]
+
+        if version_name == "steam":
+            messagebox.showwarning("Not Allowed", "Use the Steam client for the Steam version.")
+            return
+        if version_name == self.config_data.get("active_version"):
+            messagebox.showwarning("Not Allowed", "Cannot import the currently active version.")
+            return
+
+        folder_path = os.path.join(self.config_data["common_folder"], format_version_name(version_name))
+        if os.path.exists(folder_path):
+            messagebox.showwarning("Already Downloaded", f"Version {version_name} is already downloaded.")
+            return
+
+        if not self.config_data.get("common_folder"):
+            messagebox.showerror("No Common Folder", "Please set your Steam common folder first.")
+            return
+
+        SteamConsoleWindow(
+            parent=self,
+            version_name=version_name,
+            manifests=self.manifests,
+            config_data=self.config_data,
+            on_import_complete=self.refresh_version_list
+        )
+
     def switch_version(self):
         selection = self.version_listbox.curselection()
         if not selection:
@@ -332,7 +571,7 @@ class VersionManagerApp(tk.Tk):
 
         version_name = self.listbox_index_to_version[selection[0]]
         common = self.config_data["common_folder"]
-        active_folder = get_active_folder_path(self.config_data)  
+        active_folder = get_active_folder_path(self.config_data)
 
         target_folder = os.path.join(
             common,
