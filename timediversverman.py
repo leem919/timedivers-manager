@@ -307,6 +307,8 @@ class VersionManagerApp(tk.Tk):
         self.bg = "#1e1b29"
         self.fg = "#ffffff"
         self.accent = "#9b59b6"
+        self.color_active     = "#4caf50"
+        self.color_downloaded = "#2196f3"
         default_font = ("Segoe UI", 10)
         self.configure(bg=self.bg)
         style = ttk.Style(self)
@@ -469,32 +471,44 @@ class VersionManagerApp(tk.Tk):
         self.version_listbox.delete(0, tk.END)
         self.listbox_index_to_version.clear()
         active_version = self.config_data.get("active_version", "")
-        steam_folder = os.path.join(self.config_data.get("common_folder", ""), "Helldivers 2_steam")
-        display_name = "Steam Version"
-        downloaded_tag = "(downloaded) " if os.path.exists(steam_folder) else ""
-        active_tag = "(active) " if active_version == "steam" else ""
-        display_name = f"{downloaded_tag}{active_tag}{display_name}"
-        self.version_listbox.insert(tk.END, display_name)
-        self.listbox_index_to_version[0] = "steam"
+        common = self.config_data.get("common_folder", "")
+
+        def insert_item(version_key, display_name, is_active, is_downloaded):
+            idx = self.version_listbox.size()
+            self.version_listbox.insert(tk.END, display_name)
+            if is_active:
+                self.version_listbox.itemconfig(idx, fg=self.color_active)
+            elif is_downloaded:
+                self.version_listbox.itemconfig(idx, fg=self.color_downloaded)
+            self.listbox_index_to_version[idx] = version_key
+
+        steam_folder = os.path.join(common, "Helldivers 2_steam")
+        insert_item(
+            "steam", "Steam Version",
+            is_active=(active_version == "steam"),
+            is_downloaded=os.path.exists(steam_folder)
+        )
+
         dates = [v for v in self.manifests.keys() if v != "steam"]
         if self.sort_downloaded_first.get():
             def sort_key(v):
-                folder_path = os.path.join(self.config_data.get("common_folder", ""), format_version_name(v))
+                folder_path = os.path.join(common, format_version_name(v))
                 is_downloaded = os.path.exists(folder_path)
                 return (not is_downloaded, -int(v.replace("-", "")) if v.replace("-", "").isdigit() else 0)
             dates_sorted = sorted(dates, key=sort_key)
         else:
             dates_sorted = sorted(dates, key=lambda x: x, reverse=True)
+
         for version in dates_sorted:
-            folder_path = os.path.join(self.config_data.get("common_folder", ""), format_version_name(version))
-            downloaded_tag = "(downloaded) " if os.path.exists(folder_path) else ""
-            active_tag = "(active) " if version == active_version else ""
+            folder_path = os.path.join(common, format_version_name(version))
             patch_title = self.manifests.get(version, {}).get("patch_title", "")
             title_suffix = f"- {patch_title}" if patch_title else ""
-            display_name = f"{downloaded_tag}{active_tag}{version} {title_suffix}"
-            idx = self.version_listbox.size()
-            self.version_listbox.insert(tk.END, display_name)
-            self.listbox_index_to_version[idx] = version
+            display_name = f"{version} {title_suffix}"
+            insert_item(
+                version, display_name,
+                is_active=(version == active_version),
+                is_downloaded=os.path.exists(folder_path)
+            )
 
     # Download / Steam Console / Switch / Delete / Revert
     def download_version(self):
