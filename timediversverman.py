@@ -108,6 +108,9 @@ class SteamConsoleWindow(tk.Toplevel):
         style.configure("TButton", background=self.accent, foreground=self.fg, font=("Segoe UI", 10), padding=6)
         style.map("TButton", background=[("active", "#b67fd3")], foreground=[("disabled", "#666666")])
         style.configure("TEntry", fieldbackground="#2c2c3c", foreground=self.fg, insertcolor=self.fg)
+        style.configure("Import.Horizontal.TProgressbar",
+                         troughcolor="#2c2c3c", background=self.accent,
+                         bordercolor=self.bg, lightcolor=self.accent, darkcolor=self.accent)
 
         self.content_folder_var = tk.StringVar(value=config_data.get("content_folder", ""))
         self.depot_action_frames = {}
@@ -159,6 +162,15 @@ class SteamConsoleWindow(tk.Toplevel):
         self.import_btn = ttk.Button(bottom, text="Import Version",
                                      command=self._import_version, state="disabled")
         self.import_btn.pack(side="right")
+
+        self.progress_frame = tk.Frame(self, bg=self.bg)
+        self.progress_var = tk.DoubleVar(value=0)
+        self.progress_bar = ttk.Progressbar(
+            self.progress_frame, variable=self.progress_var,
+            mode="determinate", maximum=100,
+            style="Import.Horizontal.TProgressbar"
+        )
+        self.progress_bar.pack(fill="x", padx=12, pady=(0, 8))
 
     def _browse_content_folder(self):
         folder = filedialog.askdirectory(parent=self)
@@ -238,6 +250,27 @@ class SteamConsoleWindow(tk.Toplevel):
 
         self.import_btn.config(state="disabled")
 
+        total_files = sum(
+            len(filenames)
+            for depot_id in PRIMARY_DEPOTS
+            for _, _, filenames in os.walk(
+                os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
+            )
+        )
+
+        progress_state = {"done": 0, "total": max(total_files, 1)}
+
+        self.progress_frame.pack(fill="x", before=None)
+        self.progress_var.set(0)
+
+        def poll_progress():
+            pct = (progress_state["done"] / progress_state["total"]) * 100
+            self.progress_var.set(pct)
+            if progress_state["done"] < progress_state["total"]:
+                self.after(100, poll_progress)
+
+        self.after(100, poll_progress)
+
         def do_import():
             try:
                 os.makedirs(dest_folder, exist_ok=True)
@@ -251,6 +284,7 @@ class SteamConsoleWindow(tk.Toplevel):
                             src = os.path.join(dirpath, filename)
                             dst = os.path.join(target_dir, filename)
                             shutil.move(src, dst)
+                            progress_state["done"] += 1
                 for depot_id in PRIMARY_DEPOTS:
                     depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
                     shutil.rmtree(depot_path, ignore_errors=True)
@@ -261,6 +295,7 @@ class SteamConsoleWindow(tk.Toplevel):
         threading.Thread(target=do_import, daemon=True).start()
 
     def _import_done(self):
+        self.progress_var.set(100)
         content_folder = self.content_folder_var.get()
         for depot_id in PRIMARY_DEPOTS:
             depot_path = os.path.join(content_folder, f"app_{APP_ID}", f"depot_{depot_id}")
@@ -450,12 +485,15 @@ class VersionManagerApp(tk.Tk):
 
         bottom_frame = ttk.Frame(self, style="TFrame")
         bottom_frame.pack(fill="x", padx=10, pady=5)
-        ttk.Button(bottom_frame, text="Download Version", command=self.download_version).pack(side="left", padx=5)
-        ttk.Button(bottom_frame, text="Use Steam Console", command=self.open_steam_console).pack(side="left", padx=5)
+
+        dl_btn = ttk.Button(bottom_frame, text="Download Version ▼",
+                            command=lambda: self._show_download_menu(dl_btn))
+        dl_btn.pack(side="left", padx=5)
+
         ttk.Button(bottom_frame, text="Set Active Version", command=self.switch_version).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Delete Version", command=self.delete_version).pack(side="left", padx=5)
-        ttk.Button(bottom_frame, text="Revert Folders", command=self.revert_to_vanilla).pack(side="left", padx=5)
         ttk.Button(bottom_frame, text="Update List", command=self.run_scraper).pack(side="right", padx=5)
+        ttk.Button(bottom_frame, text="Revert Folders", command=self.revert_to_vanilla).pack(side="right", padx=5)
 
     # Folder/Version Management
     def browse_folder(self):
@@ -511,6 +549,17 @@ class VersionManagerApp(tk.Tk):
             )
 
     # Download / Steam Console / Switch / Delete / Revert
+    def _show_download_menu(self, anchor_widget):
+        menu = tk.Menu(self, tearoff=0,
+                       bg="#2c2c3c", fg=self.fg,
+                       activebackground=self.accent, activeforeground=self.fg,
+                       font=("Segoe UI", 10), bd=0, relief="flat")
+        menu.add_command(label="using Depot Downloader", command=self.download_version)
+        menu.add_command(label="using Steam Console",    command=self.open_steam_console)
+        x = anchor_widget.winfo_rootx()
+        y = anchor_widget.winfo_rooty() + anchor_widget.winfo_height()
+        menu.tk_popup(x, y)
+
     def download_version(self):
         self.config_data["username"] = self.username_var.get()
         self.config_data["remember_password"] = self.remember_var.get()
