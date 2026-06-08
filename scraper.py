@@ -8,9 +8,7 @@ from playwright.async_api import async_playwright
 from bs4 import BeautifulSoup
 from datetime import datetime
 
-# -------------------------------
 # Configuration
-# -------------------------------
 APP_ID = 553850
 DEPOTS = [553851, 553853, 553854]
 MANIFEST_FILE = "manifests.json"
@@ -18,18 +16,14 @@ EDGE_PATH = r"C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
 DEBUG_PORT = 9222
 STEAMDB_HOME = "https://steamdb.info/"
 
-# -------------------------------
 # Load existing manifests
-# -------------------------------
 if os.path.exists(MANIFEST_FILE):
     with open(MANIFEST_FILE, "r") as f:
         manifests = json.load(f)
 else:
     manifests = {}
 
-# -------------------------------
 # Merge manifests to carry forward missing depots
-# -------------------------------
 def merge_manifests(manifests):
     sorted_dates = sorted(manifests.keys(), key=lambda x: datetime.strptime(x, "%Y-%m-%d"))
     last_known = {}
@@ -43,9 +37,7 @@ def merge_manifests(manifests):
                 last_known[str(depot)] = entry[str(depot)]
     return manifests
 
-# -------------------------------
 # Normalize SteamDB date string
-# -------------------------------
 def normalize_date(date_str):
     try:
         dt = datetime.strptime(date_str.replace("–", "-").strip(), "%d %B %Y - %H:%M:%S UTC")
@@ -58,9 +50,7 @@ def normalize_date(date_str):
             print(f"Warning: Could not parse date '{date_str}', leaving as-is")
             return date_str
 
-# -------------------------------
-# Launch Edge for manual login
-# -------------------------------
+# Launch Edge
 def launch_edge_for_login():
     subprocess.run(["taskkill", "/IM", "msedge.exe", "/F"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     edge_process = subprocess.Popen([
@@ -75,9 +65,7 @@ def launch_edge_for_login():
     time.sleep(2)
     return edge_process
 
-# -------------------------------
 # Scrape depot manifests page
-# -------------------------------
 async def scrape_depot_manifests(page, depot_id):
     url = f"https://steamdb.info/depot/{depot_id}/manifests/"
     await page.goto(url)
@@ -87,9 +75,7 @@ async def scrape_depot_manifests(page, depot_id):
         print(f"Table not found for depot {depot_id}. Make sure the page loaded correctly.")
     return await page.content()
 
-# -------------------------------
 # Parse HTML table into manifest dict
-# -------------------------------
 def parse_table(html, depot_id):
     soup = BeautifulSoup(html, "html.parser")
     table = None
@@ -107,15 +93,26 @@ def parse_table(html, depot_id):
         cols = row.find_all("td")
         if len(cols) < 3:
             continue
+
+        manifest_cell = cols[2]
+
+        if manifest_cell.find("code", class_="js-branch"):
+            continue
+
         raw_date = cols[0].text.strip()
         date_str = normalize_date(raw_date)
-        manifest_id = cols[2].text.strip()
-        depot_data[date_str] = manifest_id
+
+        manifest_link = manifest_cell.find("a")
+        if not manifest_link:
+            continue
+        manifest_id = manifest_link.text.strip()
+
+        if date_str not in depot_data:
+            depot_data[date_str] = manifest_id
+
     return depot_data
 
-# -------------------------------
 # Scrape patch titles
-# -------------------------------
 async def scrape_patch_titles(page):
     url = f"https://steamdb.info/app/{APP_ID}/patchnotes/"
     await page.goto(url)
@@ -144,9 +141,7 @@ async def scrape_patch_titles(page):
             patch_titles[date_str] = title
     return patch_titles
 
-# -------------------------------
-# Main scraper routine
-# -------------------------------
+# Scraper routine
 async def main():
 
     edge_process = launch_edge_for_login()
@@ -190,8 +185,6 @@ async def main():
 
     print(f"\nUpdated {MANIFEST_FILE} with {len(manifests)} dates.\n")
 
-# -------------------------------
-# Entry point for standalone use
-# -------------------------------
+# Standalone entry point
 if __name__ == "__main__":
     asyncio.run(main())
