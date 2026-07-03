@@ -1,3 +1,5 @@
+NO LONGER BEING WORKED ON! Check out [Timedivers Manager V2](https://github.com/leem919/timedivers-manager-v2).
+
 # Timedivers Manager
 Version manager for Helldivers 2
 
